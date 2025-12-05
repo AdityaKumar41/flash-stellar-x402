@@ -7,6 +7,7 @@ mod types;
 use soroban_sdk::{
     contract, contractimpl, token, Address, BytesN, Env, String,
 };
+use soroban_sdk::xdr::ToXdr;  // Import ToXdr trait
 
 use auth::AuthValidator;
 use storage::Storage;
@@ -167,7 +168,7 @@ impl X402FlashContract {
         let settlement = Settlement {
             amount: auth.amount,
             timestamp: env.ledger().timestamp(),
-            auth_hash: env.crypto().sha256(&auth.server.to_xdr(&env)),
+            auth_hash: env.crypto().sha256(&auth.server.to_xdr(&env)).into(),  // Convert Hash to BytesN
         };
         Storage::add_settlement(&env, &client, &server, settlement);
 

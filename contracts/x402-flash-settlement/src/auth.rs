@@ -1,5 +1,5 @@
 use soroban_sdk::{Address, BytesN, Bytes, Env};
-use soroban_sdk::xdr::ToXdr;  // Add ToXdr trait import
+use soroban_sdk::xdr::ToXdr;  // Import ToXdr trait
 use crate::types::{PaymentAuth, X402Error};
 
 pub struct AuthValidator;
@@ -34,18 +34,18 @@ impl AuthValidator {
         // In production, you'd use a more robust serialization method
         let mut data = Bytes::new(env);
         
-        // Serialize addresses and values
-        data.append(&auth.settlement_contract.to_xdr(env));
-        data.append(&auth.client.to_xdr(env));
-        data.append(&auth.server.to_xdr(env));
-        data.append(&auth.token.to_xdr(env));
+        // Serialize addresses and values (clone to avoid ownership issues)
+        data.append(&auth.settlement_contract.clone().to_xdr(env));
+        data.append(&auth.client.clone().to_xdr(env));
+        data.append(&auth.server.clone().to_xdr(env));
+        data.append(&auth.token.clone().to_xdr(env));
         
         // Append amount and nonce bytes
         data.append(&Bytes::from_array(env, &auth.amount.to_be_bytes()));
         data.append(&Bytes::from_array(env, &auth.nonce.to_be_bytes()));
         data.append(&Bytes::from_array(env, &auth.deadline.to_be_bytes()));
         
-        env.crypto().sha256(&data)
+        env.crypto().sha256(&data).into()  // Convert Hash<32> to BytesN<32>
     }
 
     /// Validate payment authorization
