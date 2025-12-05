@@ -4,7 +4,6 @@ import {
   Contract,
   nativeToScVal,
   Address,
-  Keypair,
 } from "@stellar/stellar-sdk";
 import { STELLAR_CONFIG, CONTRACT_IDS } from "@/utils/constants";
 

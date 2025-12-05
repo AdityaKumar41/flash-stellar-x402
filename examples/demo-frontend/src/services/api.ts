@@ -17,7 +17,8 @@ class APIService {
 
   private async createPaymentHeaders(
     server: string,
-    amount: string
+    amount: string,
+    network: string = "stellar-testnet"
   ): Promise<Record<string, string>> {
     if (!this.demoKeypair) {
       throw new Error("Demo keypair not initialized");
@@ -49,10 +50,21 @@ class APIService {
       this.demoKeypair.rawSecretKey()
     );
 
+    // Create X-Payment header matching x402 spec
+    const paymentPayload = {
+      scheme: "flash",
+      network: network,
+      payload: {
+        auth,
+        signature: Buffer.from(signature).toString("hex"),
+        publicKey: this.demoKeypair.publicKey(),
+      },
+    };
+
     return {
-      "x-payment-auth": JSON.stringify(auth),
-      "x-payment-signature": Buffer.from(signature).toString("hex"),
-      "x-payment-public-key": this.demoKeypair.publicKey(),
+      "X-Payment": Buffer.from(JSON.stringify(paymentPayload)).toString(
+        "base64"
+      ),
     };
   }
 

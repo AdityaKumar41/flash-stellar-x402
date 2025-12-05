@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 import {
   Keypair,
   SorobanRpc,
@@ -6,9 +6,18 @@ import {
   Contract,
   nativeToScVal,
   Address,
-} from '@stellar/stellar-sdk';
-import { X402PaymentPayload, PaymentAuth, X402FlashServerConfig } from './types';
-import * as nacl from 'tweetnacl';
+} from "@stellar/stellar-sdk";
+import {
+  X402PaymentPayload,
+  PaymentAuth,
+  X402FlashServerConfig,
+  RoutesConfig,
+  RouteConfig,
+  PaymentConfig,
+  X402PaymentRequirements,
+  X402PaymentResponse,
+} from "./types";
+import * as nacl from "tweetnacl";
 
 export class X402FlashServer {
   private server: SorobanRpc.Server;
@@ -26,80 +35,132 @@ export class X402FlashServer {
   }
 
   /**
-   * Express middleware for x402-flash payments
+   * Parse route configuration (supports both simple price string and full config object)
    */
-  middleware(routes: {
-    [route: string]: {
-      price: string;
-      token: string;
-      network: string;
+  private parseRouteConfig(
+    config: string | RouteConfig,
+    defaultNetwork: string,
+    defaultToken: string
+  ): Required<RouteConfig> {
+    if (typeof config === "string") {
+      return {
+        price: config,
+        token: defaultToken,
+        network: defaultNetwork,
+        config: {},
+      };
+    }
+
+    return {
+      price: config.price,
+      token: config.token || defaultToken,
+      network: config.network || defaultNetwork,
+      config: config.config || {},
     };
-  }) {
+  }
+
+  /**
+   * Express middleware for x402-flash payments
+   * Compatible with x402-express API format
+   */
+  middleware(routes: RoutesConfig) {
     return async (req: Request, res: Response, next: NextFunction) => {
       const routeKey = `${req.method} ${req.path}`;
-      const routeConfig = routes[routeKey];
+      const rawRouteConfig = routes[routeKey];
 
-      if (!routeConfig) {
+      if (!rawRouteConfig) {
         return next();
       }
 
-      const paymentHeader = req.header('X-Payment');
+      // Parse route configuration
+      const routeConfig = this.parseRouteConfig(
+        rawRouteConfig,
+        "stellar-testnet",
+        "native"
+      );
+
+      const paymentHeader = req.header("X-Payment");
 
       if (!paymentHeader) {
-        // Return 402 with payment requirements
-        return res.status(402).json({
+        // Return 402 with payment requirements following x402 standard
+        const requirements: X402PaymentRequirements = {
           x402Version: 1,
           accepts: [
             {
-              scheme: 'flash',
+              scheme: "flash",
               network: routeConfig.network,
               maxAmountRequired: routeConfig.price,
-              resource: req.originalUrl,
-              description: `Access to ${req.path}`,
-              mimeType: 'application/json',
+              resource: routeConfig.config.resource || req.originalUrl,
+              description:
+                routeConfig.config.description || `Access to ${req.path}`,
+              mimeType: routeConfig.config.mimeType || "application/json",
               payTo: this.paymentAddress,
-              maxTimeoutSeconds: 60,
+              maxTimeoutSeconds: routeConfig.config.maxTimeoutSeconds || 60,
               asset: routeConfig.token,
               extra: {},
             },
           ],
-          error: 'X-Payment header required',
-        });
+          error: "Payment required",
+        };
+
+        return res.status(402).json(requirements);
       }
 
-      // Parse payment
+      // Parse and validate payment
       try {
-        const decoded = Buffer.from(paymentHeader, 'base64').toString('utf-8');
+        const decoded = Buffer.from(paymentHeader, "base64").toString("utf-8");
         const paymentPayload: X402PaymentPayload = JSON.parse(decoded);
 
-        if (paymentPayload.scheme !== 'flash') {
-          return res.status(400).json({ error: 'Unsupported payment scheme' });
+        if (paymentPayload.x402Version !== 1) {
+          return res.status(400).json({ error: "Unsupported x402 version" });
+        }
+
+        if (paymentPayload.scheme !== "flash") {
+          return res
+            .status(400)
+            .json({ error: "Unsupported payment scheme. Expected: flash" });
+        }
+
+        // Verify payment network matches
+        if (paymentPayload.network !== routeConfig.network) {
+          return res.status(400).json({
+            error: `Network mismatch. Expected: ${routeConfig.network}, Got: ${paymentPayload.network}`,
+          });
         }
 
         // Verify and settle payment
         const { auth, signature, publicKey } = paymentPayload.payload;
 
-        // Settle payment on-chain (async)
+        // Validate payment amount
+        if (BigInt(auth.amount) < BigInt(routeConfig.price)) {
+          return res.status(402).json({
+            error: `Insufficient payment. Required: ${routeConfig.price}, Got: ${auth.amount}`,
+          });
+        }
+
+        // Settle payment on-chain (async - doesn't block response)
         this.settlePaymentAsync(auth, signature, publicKey).catch((err) => {
-          console.error('Settlement failed:', err);
+          console.error("❌ Settlement failed:", err);
         });
 
-        // Immediately respond (flash!)
+        // Immediately respond with success (flash!)
+        const paymentResponse: X402PaymentResponse = {
+          success: true,
+          network: paymentPayload.network,
+          timestamp: Date.now(),
+        };
+
         res.setHeader(
-          'X-Payment-Response',
-          Buffer.from(
-            JSON.stringify({
-              success: true,
-              network: paymentPayload.network,
-              timestamp: Date.now(),
-            })
-          ).toString('base64')
+          "X-Payment-Response",
+          Buffer.from(JSON.stringify(paymentResponse)).toString("base64")
         );
 
         next();
       } catch (err) {
-        console.error('Payment processing error:', err);
-        return res.status(400).json({ error: 'Invalid payment' });
+        console.error("❌ Payment processing error:", err);
+        const errorMessage =
+          err instanceof Error ? err.message : "Invalid payment";
+        return res.status(400).json({ error: errorMessage });
       }
     };
   }
@@ -112,40 +173,95 @@ export class X402FlashServer {
     signature: string,
     publicKey: string
   ): Promise<void> {
-    const account = await this.server.getAccount(this.keypair.publicKey());
-    
-    const contract = new Contract(this.contractId);
+    try {
+      const account = await this.server.getAccount(this.keypair.publicKey());
 
-    // Convert signature from hex to bytes
-    const sigBytes = Buffer.from(signature, 'hex');
-    
-    const tx = new TransactionBuilder(account, {
-      fee: '100000',
-      networkPassphrase: this.networkPassphrase,
-    })
-      .addOperation(
-        contract.call(
-          'settle_payment',
-          nativeToScVal(Address.fromString(auth.client), { type: 'address' }),
-          nativeToScVal(Address.fromString(auth.server), { type: 'address' }),
-          nativeToScVal(auth, { type: 'map' }), // Convert PaymentAuth to ScVal map
-          nativeToScVal(sigBytes, { type: 'bytes' }),
-          nativeToScVal(Buffer.from(publicKey), { type: 'bytes' })
+      const contract = new Contract(this.contractId);
+
+      // Convert signature from hex to bytes
+      const sigBytes = Buffer.from(signature, "hex");
+
+      const tx = new TransactionBuilder(account, {
+        fee: "100000",
+        networkPassphrase: this.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "settle_payment",
+            nativeToScVal(Address.fromString(auth.client), { type: "address" }),
+            nativeToScVal(Address.fromString(auth.server), { type: "address" }),
+            nativeToScVal(auth, { type: "map" }), // Convert PaymentAuth to ScVal map
+            nativeToScVal(sigBytes, { type: "bytes" }),
+            nativeToScVal(Buffer.from(publicKey), { type: "bytes" })
+          )
         )
-      )
-      .setTimeout(30)
-      .build();
+        .setTimeout(30)
+        .build();
 
-    tx.sign(this.keypair);
+      tx.sign(this.keypair);
 
-    await this.server.sendTransaction(tx);
-    
-    console.log(`✅ Payment settled: ${auth.amount} from ${auth.client}`);
+      const response = await this.server.sendTransaction(tx);
+
+      console.log(
+        `✅ Payment settled: ${auth.amount} stroops from ${auth.client.slice(0, 8)}...`
+      );
+      console.log(`   Transaction: ${response.hash}`);
+    } catch (error) {
+      console.error("❌ Settlement error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify payment signature (can be used for additional validation)
+   */
+  verifySignature(
+    auth: PaymentAuth,
+    signature: string,
+    publicKey: string
+  ): boolean {
+    try {
+      const message = this.serializeAuth(auth);
+      const messageHash = nacl.hash(Buffer.from(message));
+      const sigBytes = Buffer.from(signature, "hex");
+      const pubKeyBytes = Keypair.fromPublicKey(publicKey).rawPublicKey();
+
+      return nacl.sign.detached.verify(messageHash, sigBytes, pubKeyBytes);
+    } catch (error) {
+      console.error("Signature verification error:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Serialize payment auth for verification
+   */
+  private serializeAuth(auth: PaymentAuth): string {
+    return JSON.stringify({
+      settlementContract: auth.settlementContract,
+      client: auth.client,
+      server: auth.server,
+      token: auth.token,
+      amount: auth.amount,
+      nonce: auth.nonce,
+      deadline: auth.deadline,
+    });
   }
 }
 
 /**
- * Convenience function to create middleware
+ * Convenience function to create middleware (x402-express compatible API)
+ */
+export function paymentMiddleware(
+  config: X402FlashServerConfig,
+  routes: RoutesConfig
+) {
+  const server = new X402FlashServer(config);
+  return server.middleware(routes);
+}
+
+/**
+ * Legacy alias for backward compatibility
  */
 export function x402FlashMiddleware(
   config: X402FlashServerConfig,

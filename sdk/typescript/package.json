@@ -1,32 +1,56 @@
 {
   "name": "@x402-flash/stellar-sdk",
   "version": "0.1.0",
-  "description": "TypeScript SDK for x402-flash micropayments on Stellar Soroban",
+  "description": "TypeScript SDK for x402-flash micropayments on Stellar Soroban - compatible with x402 payment protocol",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build",
     "test": "jest",
     "prepublish": "npm run build",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "stellar",
     "soroban",
     "micropayments",
     "x402",
-    "payment-channel"
+    "payment-channel",
+    "flash-payment",
+    "web3",
+    "blockchain"
   ],
-  "author": "",
+  "author": "AdityaKumar41",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AdityaKumar41/flash-stellar-x402"
+  },
+  "bugs": {
+    "url": "https://github.com/AdityaKumar41/flash-stellar-x402/issues"
+  },
+  "homepage": "https://github.com/AdityaKumar41/flash-stellar-x402#readme",
   "dependencies": {
     "@stellar/stellar-sdk": "^12.0.0",
+    "express": "^4.18.0",
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
     "jest": "^29.7.0",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "express": "^4.18.0"
   }
 }

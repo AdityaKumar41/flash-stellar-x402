@@ -8,7 +8,7 @@ import { DEMO_STEPS } from "@/utils/constants";
 import toast from "react-hot-toast";
 
 export function useLiveDemo() {
-  const { wallet, refreshBalance } = useWallet();
+  const { refreshBalance } = useWallet();
   const [steps, setSteps] = useState<DemoStep[]>(
     DEMO_STEPS.map((s) => ({ ...s, status: "pending" as const }))
   );

@@ -49,7 +49,7 @@ interface Metric {
 
 const metrics: Metric[] = [];
 
-// Configure x402-flash middleware
+// Configure x402-flash middleware (updated API)
 const paymentMiddleware = x402FlashMiddleware(
   {
     rpcUrl:
@@ -62,15 +62,19 @@ const paymentMiddleware = x402FlashMiddleware(
     paymentAddress: process.env.PAYMENT_ADDRESS!,
   },
   {
-    "POST /api/weather": {
-      price: "10000", // 0.001 XLM
-      token: process.env.TOKEN_ADDRESS || "native",
-      network: "stellar-testnet",
-    },
+    // Simple price format
+    "POST /api/weather": "10000", // 0.001 XLM
+
+    // Full configuration format with description
     "POST /api/premium-data": {
       price: "100000", // 0.01 XLM
       token: process.env.TOKEN_ADDRESS || "native",
       network: "stellar-testnet",
+      config: {
+        description: "Access to premium market data",
+        mimeType: "application/json",
+        maxTimeoutSeconds: 60,
+      },
     },
   }
 );
