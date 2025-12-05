@@ -3,11 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_API_URL: string;
   readonly VITE_CONTRACT_ID: string;
-  readonly VITE_USDC_CONTRACT_ID: string;
-  readonly VITE_SERVER_ADDRESS: string;
-  readonly VITE_STELLAR_NETWORK: string;
-  readonly VITE_RPC_URL: string;
-  readonly VITE_HORIZON_URL: string;
+  readonly VITE_STELLAR_RPC_URL: string;
+  readonly VITE_NETWORK_PASSPHRASE: string;
 }
 
 interface ImportMeta {

@@ -1,268 +1,196 @@
-import { motion } from "framer-motion";
-import { Zap, Wallet, PlayCircle } from "lucide-react";
-import { useWallet } from "./hooks/useWallet";
-import { useLiveDemo } from "./hooks/useLiveDemo";
-import { useSpeedTest } from "./hooks/useSpeedTest";
-import { formatAddress } from "./utils/formatters";
+import { useState } from "react";
+import { WalletConnect } from "./components/WalletConnect";
+import { ChannelManager } from "./components/ChannelManager";
+import { ApiTester } from "./components/ApiTester";
+import { MetricsDashboard } from "./components/MetricsDashboard";
+import { useFreighter } from "./hooks/useFreighter";
+import { usePayments } from "./hooks/usePayments";
+import { Zap, Github, FileText } from "lucide-react";
+import { Keypair } from "@stellar/stellar-sdk";
 
 function App() {
-  const { wallet, loading, connect, disconnect } = useWallet();
-  const { steps, running, runDemo, resetDemo } = useLiveDemo();
-  const { results, isRunning, progress, stats, runTest, clearResults } =
-    useSpeedTest();
+  const wallet = useFreighter();
+  const [sessionKeypair, setSessionKeypair] = useState<any>(null);
+
+  // Generate session keypair when wallet connects
+  const handleConnect = async () => {
+    try {
+      const publicKey = await wallet.connect();
+      // Generate a temporary keypair for signing payment authorizations
+      const keypair = Keypair.random();
+      setSessionKeypair(keypair);
+    } catch (error) {
+      console.error("Failed to connect:", error);
+    }
+  };
+
+  const handleDisconnect = () => {
+    wallet.disconnect();
+    setSessionKeypair(null);
+  };
+
+  const payments = usePayments(wallet.publicKey, sessionKeypair?.secret());
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-gray-900 to-black text-white">
+    <div className="min-h-screen bg-stellar-dark">
       {/* Header */}
-      <header className="border-b border-purple-500/20 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Zap className="w-8 h-8 text-purple-500" />
-              <h1 className="text-2xl font-bold gradient-text">
-                x402-flash on Stellar
-              </h1>
-            </div>
-
-            {!wallet.connected ? (
-              <button
-                onClick={connect}
-                disabled={loading}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Wallet className="w-4 h-4" />
-                {loading ? "Connecting..." : "Connect Wallet"}
-              </button>
-            ) : (
-              <div className="flex items-center gap-4">
-                <div className="text-sm">
-                  <div className="text-gray-400">Balance</div>
-                  <div className="font-semibold">
-                    {parseFloat(wallet.balance).toFixed(4)} XLM
-                  </div>
-                </div>
-                <div className="text-sm">
-                  <div className="text-gray-400">Address</div>
-                  <div className="font-mono">
-                    {formatAddress(wallet.publicKey)}
-                  </div>
-                </div>
-                <button onClick={disconnect} className="btn-secondary text-sm">
-                  Disconnect
-                </button>
+              <div className="bg-gradient-to-r from-stellar-purple to-stellar-blue p-2 rounded-lg">
+                <Zap className="w-6 h-6 text-white" />
               </div>
-            )}
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-stellar-purple to-stellar-blue bg-clip-text text-transparent">
+                  x402-Flash Demo
+                </h1>
+                <p className="text-sm text-gray-400">
+                  Stellar Micropayments SDK
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://github.com/yourusername/x402-flash-sdk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <Github className="w-5 h-5" />
+              </a>
+              <a
+                href="/docs"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <FileText className="w-5 h-5" />
+              </a>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-16 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <h2 className="text-5xl font-bold mb-6">
-            Lightning Fast <span className="gradient-text">Micropayments</span>
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            Lightning-Fast Micropayments
           </h2>
-          <p className="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
-            Experience sub-100ms payment channels on Stellar. Perfect for AI
-            agents, APIs, and real-time services.
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            Experience instant API payments with Stellar blockchain. Open a
+            channel once, make unlimited requests with ~100x faster settlement.
           </p>
-          <div className="flex gap-4 justify-center">
-            <div className="card text-center">
-              <div className="text-4xl font-bold text-purple-500">
-                {"<"}100ms
-              </div>
-              <div className="text-gray-400 mt-2">Payment Latency</div>
+          <div className="flex items-center justify-center gap-6 mt-6">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-stellar-blue">~5ms</p>
+              <p className="text-sm text-gray-400">Payment Latency</p>
             </div>
-            <div className="card text-center">
-              <div className="text-4xl font-bold text-purple-500">50x</div>
-              <div className="text-gray-400 mt-2">Faster than Standard</div>
+            <div className="w-px h-12 bg-gray-700"></div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-stellar-purple">100x</p>
+              <p className="text-sm text-gray-400">Faster than L1</p>
             </div>
-            <div className="card text-center">
-              <div className="text-4xl font-bold text-purple-500">$0.0001</div>
-              <div className="text-gray-400 mt-2">Minimum Payment</div>
-            </div>
-          </div>
-        </motion.div>
-      </section>
-
-      {/* Live Demo Section */}
-      <section className="container mx-auto px-4 py-16">
-        <h3 className="text-3xl font-bold mb-8 text-center">Live Demo</h3>
-
-        <div className="max-w-4xl mx-auto">
-          <div className="card">
-            <div className="mb-6">
-              <h4 className="text-xl font-semibold mb-4">
-                Payment Channel Flow
-              </h4>
-              <div className="space-y-4">
-                {steps.map((step) => (
-                  <div
-                    key={step.id}
-                    className={`p-4 rounded-lg border ${
-                      step.status === "success"
-                        ? "border-green-500/50 bg-green-500/10"
-                        : step.status === "running"
-                          ? "border-purple-500/50 bg-purple-500/10 animate-pulse"
-                          : step.status === "error"
-                            ? "border-red-500/50 bg-red-500/10"
-                            : "border-gray-700 bg-gray-800/50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">{step.title}</div>
-                        <div className="text-sm text-gray-400">
-                          {step.description}
-                        </div>
-                        {step.result && (
-                          <div className="text-xs text-gray-500 mt-2">
-                            {JSON.stringify(step.result, null, 2)}
-                          </div>
-                        )}
-                        {step.error && (
-                          <div className="text-xs text-red-400 mt-2">
-                            {step.error}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-2xl">
-                        {step.status === "success" && "✅"}
-                        {step.status === "running" && "⏳"}
-                        {step.status === "error" && "❌"}
-                        {step.status === "pending" && "⚪"}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                onClick={runDemo}
-                disabled={running || !wallet.connected}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
-              >
-                <PlayCircle className="w-5 h-5" />
-                {running ? "Running Demo..." : "Run Demo"}
-              </button>
-              <button
-                onClick={resetDemo}
-                disabled={running}
-                className="btn-secondary"
-              >
-                Reset
-              </button>
+            <div className="w-px h-12 bg-gray-700"></div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-green-400">$0.0001</p>
+              <p className="text-sm text-gray-400">Avg Cost/Request</p>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Speed Test Section */}
-      <section className="container mx-auto px-4 py-16">
-        <h3 className="text-3xl font-bold mb-8 text-center">Speed Test</h3>
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Left Column - Wallet & Channel */}
+          <div className="space-y-6">
+            <WalletConnect
+              connected={wallet.connected}
+              publicKey={wallet.publicKey}
+              loading={wallet.loading}
+              error={wallet.error}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+            />
+            <ChannelManager
+              channel={payments.channel}
+              loading={payments.loading}
+              error={payments.error}
+              onOpen={async (amount: string) => {
+                await payments.openChannel(amount);
+              }}
+              onClose={payments.closeChannel}
+              disabled={!wallet.connected}
+            />
+          </div>
 
-        <div className="max-w-4xl mx-auto">
-          <div className="card">
-            <div className="mb-6">
-              <h4 className="text-xl font-semibold mb-4">
-                Compare x402-flash vs Standard Payments
-              </h4>
-
-              {stats.flashAvg > 0 && (
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="card">
-                    <div className="text-sm text-gray-400">Flash Average</div>
-                    <div className="text-2xl font-bold text-purple-500">
-                      {stats.flashAvg.toFixed(0)}ms
-                    </div>
-                  </div>
-                  <div className="card">
-                    <div className="text-sm text-gray-400">
-                      Standard Average
-                    </div>
-                    <div className="text-2xl font-bold text-blue-500">
-                      {stats.standardAvg.toFixed(0)}ms
-                    </div>
-                  </div>
-                  <div className="card">
-                    <div className="text-sm text-gray-400">Speedup</div>
-                    <div className="text-2xl font-bold text-green-500">
-                      {stats.speedup.toFixed(1)}x
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {isRunning && (
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Progress</span>
-                    <span>{progress.toFixed(0)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-purple-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {results.length > 0 && (
-                <div className="max-h-64 overflow-y-auto space-y-2">
-                  {results.map((result) => (
-                    <div
-                      key={result.id}
-                      className={`flex items-center justify-between p-2 rounded ${
-                        result.method === "flash"
-                          ? "bg-purple-900/30"
-                          : "bg-blue-900/30"
-                      }`}
-                    >
-                      <span className="text-sm font-mono">
-                        {result.method === "flash" ? "⚡ Flash" : "🐌 Standard"}
-                      </span>
-                      <span className="text-sm font-semibold">
-                        {result.latency}ms
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                onClick={() => runTest(10)}
-                disabled={isRunning}
-                className="btn-primary flex-1"
-              >
-                {isRunning ? "Running..." : "Run Speed Test"}
-              </button>
-              <button
-                onClick={clearResults}
-                disabled={isRunning}
-                className="btn-secondary"
-              >
-                Clear
-              </button>
-            </div>
+          {/* Right Column - API Tester */}
+          <div className="lg:col-span-2">
+            <ApiTester
+              onRequest={payments.makeRequest}
+              disabled={!payments.channel}
+            />
           </div>
         </div>
-      </section>
+
+        {/* Metrics */}
+        <MetricsDashboard
+          totalPaid={payments.metrics.totalPaid}
+          requestCount={payments.metrics.requestCount}
+          avgLatency={payments.metrics.avgLatency}
+        />
+
+        {/* Info Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
+            <h3 className="font-bold mb-2 text-stellar-blue">
+              🚀 Getting Started
+            </h3>
+            <p className="text-sm text-gray-400">
+              1. Install Freighter wallet
+              <br />
+              2. Connect your wallet
+              <br />
+              3. Open a payment channel
+              <br />
+              4. Start making requests!
+            </p>
+          </div>
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
+            <h3 className="font-bold mb-2 text-stellar-purple">
+              ⚡ How It Works
+            </h3>
+            <p className="text-sm text-gray-400">
+              Flash payments use state channels on Stellar for instant
+              settlement. No waiting for blockchain confirmations between
+              payments.
+            </p>
+          </div>
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
+            <h3 className="font-bold mb-2 text-green-400">💰 Pricing</h3>
+            <p className="text-sm text-gray-400">
+              Weather: 0.001 XLM
+              <br />
+              Market: 0.005 XLM
+              <br />
+              Analytics: 0.01 XLM
+              <br />
+              AI Query: 0.02 XLM
+            </p>
+          </div>
+        </div>
+      </main>
 
       {/* Footer */}
-      <footer className="border-t border-purple-500/20 mt-16">
-        <div className="container mx-auto px-4 py-8 text-center text-gray-400">
-          <p>Built with ❤️ on Stellar Soroban</p>
-          <p className="text-sm mt-2">
-            x402-flash SDK - Lightning Fast Micropayments for the Future
+      <footer className="border-t border-gray-800 mt-12 py-6">
+        <div className="container mx-auto px-4 text-center text-sm text-gray-500">
+          <p>
+            Built with{" "}
+            <span className="text-stellar-purple">x402-flash SDK</span> on{" "}
+            <span className="text-stellar-blue">Stellar</span>
+          </p>
+          <p className="mt-2">
+            Network: <span className="text-yellow-400">Testnet</span> •
+            Protocol: <span className="text-green-400">x402 v1</span>
           </p>
         </div>
       </footer>

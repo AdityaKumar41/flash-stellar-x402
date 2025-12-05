@@ -16,7 +16,7 @@ import {
   PaymentConfig,
   X402PaymentRequirements,
   X402PaymentResponse,
-} from "./types";
+} from "./types.js";
 import * as nacl from "tweetnacl";
 
 export class X402FlashServer {

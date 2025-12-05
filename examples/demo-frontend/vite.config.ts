@@ -1,42 +1,23 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "path";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-    conditions: ["import", "module", "browser", "default"],
-    mainFields: ["module", "browser", "main"],
-  },
   server: {
     port: 3000,
-    proxy: {
-      "/api": {
-        target: "http://localhost:3001",
-        changeOrigin: true,
-      },
-      "/ws": {
-        target: "ws://localhost:3001",
-        ws: true,
-      },
-    },
+    strictPort: false,
+    open: true,
   },
   build: {
     outDir: "dist",
     sourcemap: true,
-    commonjsOptions: {
-      include: [/@stellar\/stellar-sdk/, /node_modules/],
-      transformMixedEsModules: true,
+  },
+  resolve: {
+    alias: {
+      "@": "/src",
     },
   },
   optimizeDeps: {
-    include: ["@stellar/stellar-sdk"],
-    esbuildOptions: {
-      target: "esnext",
-      mainFields: ["module", "main"],
-    },
+    include: ["@x402-flash/stellar-sdk"],
   },
 });

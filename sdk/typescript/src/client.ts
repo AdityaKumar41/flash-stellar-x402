@@ -12,7 +12,7 @@ import {
   PaymentAuth,
   X402FlashClientConfig,
   X402PaymentPayload,
-} from "./types";
+} from "./types.js";
 
 export class X402FlashClient {
   private server: SorobanRpc.Server;
@@ -169,22 +169,24 @@ export class X402FlashClient {
   private async getCurrentNonce(): Promise<number> {
     const contract = new Contract(this.contractId);
     const account = await this.server.getAccount(this.keypair.publicKey());
-    
+
     const tx = new TransactionBuilder(account, {
-      fee: '10000',
+      fee: "10000",
       networkPassphrase: this.networkPassphrase,
     })
       .addOperation(
         contract.call(
-          'get_nonce',
-          nativeToScVal(Address.fromString(this.keypair.publicKey()), { type: 'address' })
+          "get_nonce",
+          nativeToScVal(Address.fromString(this.keypair.publicKey()), {
+            type: "address",
+          })
         )
       )
       .setTimeout(30)
       .build();
 
     const simulated = await this.server.simulateTransaction(tx);
-    
+
     if (SorobanRpc.Api.isSimulationSuccess(simulated)) {
       const result = simulated.result?.retval;
       if (result) {
