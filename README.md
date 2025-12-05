@@ -53,12 +53,38 @@ npm run build
 
 See [examples/](./examples/) for complete usage examples.
 
+## 🎬 Live Demo
+
+Experience x402-flash in action with our interactive demo:
+
+```bash
+# One-command setup and start
+npm run setup:demo && npm run start:demo
+```
+
+Features:
+
+- ⚡ **< 100ms** payment latency
+- 🚀 **50x faster** than standard blockchain payments
+- 🎨 Beautiful React UI with Freighter wallet integration
+- 📊 Real-time metrics and speed tests
+- 🔌 Complete payment channel lifecycle demo
+
+👉 **[Full Demo Guide](./examples/DEMO_README.md)** | **[Quick Reference](./QUICK_REFERENCE.md)**
+
 ## 📚 Documentation
 
-- [Implementation Plan](./docs/IMPLEMENTATION_PLAN.md)
-- [Architecture](./docs/ARCHITECTURE.md)
-- [API Reference](./docs/API.md)
-- [Tutorial](./docs/TUTORIAL.md)
+- **Demo & Getting Started**:
+  - [Demo Guide](./examples/DEMO_README.md) - Complete interactive demo
+  - [Quick Reference](./QUICK_REFERENCE.md) - Essential commands
+  - [Demo Implementation](./DEMO_IMPLEMENTATION.md) - What was built
+  - [Getting Started](./docs/GETTING_STARTED.md) - SDK usage guide
+
+- **Architecture & Design**:
+  - [Architecture](./docs/ARCHITECTURE.md) - System design
+  - [Phase 1: Core Infrastructure](./Phase1.md)
+  - [Phase 2: AI Agent Integration](./Phase2.md)
+  - [Phase 3: MCP Server](./Phase3.md)
 
 ## 🤝 Contributing
 
