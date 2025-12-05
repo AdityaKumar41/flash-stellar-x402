@@ -129,10 +129,34 @@ export class X402FlashClient {
    * Get current nonce for client
    */
   private async getCurrentNonce(): Promise<number> {
-    // Call contract to get nonce
-    // For now, implement client-side tracking
-    // TODO: Query contract storage
-    return Date.now();
+    const contract = new Contract(this.contractId);
+    const account = await this.server.getAccount(this.keypair.publicKey());
+    
+    const tx = new TransactionBuilder(account, {
+      fee: '10000',
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'get_nonce',
+          nativeToScVal(Address.fromString(this.keypair.publicKey()), { type: 'address' })
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const simulated = await this.server.simulateTransaction(tx);
+    
+    if (SorobanRpc.Api.isSimulationSuccess(simulated)) {
+      const result = simulated.result?.retval;
+      if (result) {
+        // Parse u64 result from ScVal
+        return Number(result.u64?.() || 0n);
+      }
+    }
+
+    // Fallback to 0 if query fails
+    return 0;
   }
 
   /**

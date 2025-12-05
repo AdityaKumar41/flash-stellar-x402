@@ -7,6 +7,7 @@ mod types;
 use soroban_sdk::{
     contract, contractimpl, token, Address, BytesN, Env, String,
 };
+use soroban_sdk::xdr::ToXdr;
 
 use auth::AuthValidator;
 use storage::Storage;
@@ -167,7 +168,7 @@ impl X402FlashContract {
         let settlement = Settlement {
             amount: auth.amount,
             timestamp: env.ledger().timestamp(),
-            auth_hash: env.crypto().sha256(&auth.server.to_xdr(&env)),
+            auth_hash: env.crypto().sha256(&auth.server.clone().to_xdr(&env)).into(),
         };
         Storage::add_settlement(&env, &client, &server, settlement);
 
@@ -231,6 +232,11 @@ impl X402FlashContract {
         Storage::get_channel(&env, &client, &server)
             .map(|c| c.escrow_balance)
             .unwrap_or(0)
+    }
+
+    /// Get current nonce for client
+    pub fn get_nonce(env: Env, client: Address) -> u64 {
+        Storage::get_client_nonce(&env, &client)
     }
 
     /// Admin: Set minimum payment for token
