@@ -234,6 +234,11 @@ impl X402FlashContract {
             .unwrap_or(0)
     }
 
+    /// Get current nonce for client
+    pub fn get_nonce(env: Env, client: Address) -> u64 {
+        Storage::get_client_nonce(&env, &client)
+    }
+
     /// Admin: Set minimum payment for token
     pub fn set_minimum_payment(env: Env, token: Address, amount: i128) -> Result<(), X402Error> {
         let admin = Storage::get_admin(&env);
