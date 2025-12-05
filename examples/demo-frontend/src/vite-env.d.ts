@@ -10,3 +10,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Freighter wallet types
+interface Window {
+  freighter?: boolean;
+}

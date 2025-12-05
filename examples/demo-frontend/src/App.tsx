@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WalletConnect } from "./components/WalletConnect";
 import { ChannelManager } from "./components/ChannelManager";
 import { ApiTester } from "./components/ApiTester";
@@ -10,26 +10,39 @@ import { Keypair } from "@stellar/stellar-sdk";
 
 function App() {
   const wallet = useFreighter();
-  const [sessionKeypair, setSessionKeypair] = useState<any>(null);
+  const [sessionKeypair, setSessionKeypair] = useState<Keypair | null>(null);
 
   // Generate session keypair when wallet connects
-  const handleConnect = async () => {
-    try {
-      const publicKey = await wallet.connect();
-      // Generate a temporary keypair for signing payment authorizations
+  useEffect(() => {
+    if (wallet.connected && wallet.publicKey && !sessionKeypair) {
+      console.log("🔑 Generating session keypair for payments...");
       const keypair = Keypair.random();
       setSessionKeypair(keypair);
+      console.log("✅ Session keypair ready");
+    } else if (!wallet.connected && sessionKeypair) {
+      setSessionKeypair(null);
+    }
+  }, [wallet.connected, wallet.publicKey, sessionKeypair]);
+
+  const handleConnect = async () => {
+    try {
+      console.log("🔗 Connecting to Freighter wallet...");
+      await wallet.connect();
     } catch (error) {
-      console.error("Failed to connect:", error);
+      console.error("❌ Failed to connect wallet:", error);
     }
   };
 
   const handleDisconnect = () => {
+    console.log("👋 Disconnecting wallet...");
     wallet.disconnect();
     setSessionKeypair(null);
   };
 
-  const payments = usePayments(wallet.publicKey, sessionKeypair?.secret());
+  const payments = usePayments(
+    wallet.publicKey,
+    sessionKeypair?.secret() || null
+  );
 
   return (
     <div className="min-h-screen bg-stellar-dark">

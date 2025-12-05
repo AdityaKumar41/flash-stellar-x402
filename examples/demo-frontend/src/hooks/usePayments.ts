@@ -46,14 +46,31 @@ export function usePayments(
 
   useEffect(() => {
     if (publicKey && secretKey) {
-      const newClient = new X402FlashClient({
-        rpcUrl: RPC_URL,
-        networkPassphrase: NETWORK_PASSPHRASE,
-        contractId: CONTRACT_ID,
-        secretKey,
-      });
-      setClient(newClient);
+      console.log("💼 Initializing X402FlashClient...");
+      console.log("   Public Key:", publicKey);
+      console.log("   Contract ID:", CONTRACT_ID);
+      console.log("   RPC URL:", RPC_URL);
+
+      try {
+        const newClient = new X402FlashClient({
+          rpcUrl: RPC_URL,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          contractId: CONTRACT_ID,
+          secretKey,
+        });
+        setClient(newClient);
+        console.log("✅ X402FlashClient initialized");
+      } catch (error) {
+        console.error("❌ Failed to initialize client:", error);
+        setState((prev) => ({
+          ...prev,
+          error: "Failed to initialize payment client",
+        }));
+      }
     } else {
+      if (client) {
+        console.log("⚠️  Clearing client (wallet disconnected)");
+      }
       setClient(null);
       setState((prev) => ({ ...prev, channel: null }));
     }
@@ -61,29 +78,54 @@ export function usePayments(
 
   const openChannel = useCallback(
     async (amount: string) => {
-      if (!client || !publicKey) {
-        throw new Error("Client not initialized");
+      console.log("📤 Opening payment channel...");
+      console.log("   Amount:", amount, "stroops");
+
+      if (!client) {
+        const error =
+          "Payment client not initialized. Please connect your wallet first.";
+        console.error("❌", error);
+        throw new Error(error);
+      }
+
+      if (!publicKey) {
+        const error = "No wallet connected. Please connect Freighter wallet.";
+        console.error("❌", error);
+        throw new Error(error);
       }
 
       try {
         setState((prev) => ({ ...prev, loading: true, error: null }));
 
         // Get server payment address from API
+        console.log("   Fetching server info from:", `${API_URL}/info`);
         const infoResponse = await fetch(`${API_URL}/info`);
         const info = await infoResponse.json();
+        console.log("   Server info received:", info);
+
         const serverAddress = info.paymentAddress;
 
         if (!serverAddress) {
           throw new Error("Server payment address not found");
         }
 
+        console.log("   Server address:", serverAddress);
+
         // Open escrow: server, token (native), amount, ttl
+        console.log("   Opening escrow with:");
+        console.log("     Server:", serverAddress);
+        console.log("     Token: native");
+        console.log("     Amount:", amount, "stroops");
+        console.log("     TTL: 3600 seconds");
+
         const txHash = await client.openEscrow(
           serverAddress,
           "native", // Using native XLM
           amount,
           3600 // 1 hour TTL
         );
+
+        console.log("✅ Escrow opened! Transaction hash:", txHash);
 
         setState((prev) => ({
           ...prev,
