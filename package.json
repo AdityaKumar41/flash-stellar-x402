@@ -12,7 +12,12 @@
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "dev": "npm run dev --workspaces --if-present",
-    "clean": "rm -rf node_modules sdk/*/node_modules examples/*/node_modules scripts/node_modules sdk/*/dist examples/*/dist"
+    "clean": "rm -rf node_modules sdk/*/node_modules examples/*/node_modules scripts/node_modules sdk/*/dist examples/*/dist",
+    "setup:demo": "./scripts/setup-demo.sh",
+    "generate:keys": "./scripts/generate-keys.sh",
+    "deploy:contract": "./scripts/deploy-simple.sh",
+    "start:demo": "./scripts/start-demo.sh",
+    "verify:types": "./scripts/verify-typescript.sh"
   },
   "devDependencies": {
     "typescript": "^5.3.0",
