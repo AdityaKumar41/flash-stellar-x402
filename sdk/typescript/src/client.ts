@@ -7,7 +7,8 @@ import {
   Address,
   xdr,
 } from "@stellar/stellar-sdk";
-import * as nacl from "tweetnacl";
+import nacl from "tweetnacl";
+import { createHash } from "crypto";
 import {
   PaymentAuth,
   X402FlashClientConfig,
@@ -232,13 +233,14 @@ export class X402FlashClient {
 
       // Create message to sign
       const message = this.serializeAuth(auth);
-      const messageHash = nacl.hash(Buffer.from(message));
 
-      // Sign with Ed25519
-      const signature = nacl.sign.detached(
-        messageHash,
-        this.keypair.rawSecretKey()
-      );
+      // For Ed25519 signing, we just sign the message directly (no need to hash first)
+      // tweetnacl expects a 64-byte secret key (32 bytes seed + 32 bytes public key)
+      const secretKey = new Uint8Array(64);
+      secretKey.set(this.keypair.rawSecretKey());
+      secretKey.set(this.keypair.rawPublicKey(), 32);
+
+      const signature = nacl.sign.detached(Buffer.from(message), secretKey);
 
       return {
         auth,
