@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { X402FlashClient } from "@x402-flash/stellar-sdk";
+import { Keypair } from "@stellar/stellar-sdk";
+import { ensureAccountFunded } from "../utils/stellar";
 
 export interface Channel {
   id: string;
@@ -26,6 +28,9 @@ const RPC_URL =
 const NETWORK_PASSPHRASE =
   import.meta.env.VITE_NETWORK_PASSPHRASE ||
   "Test SDF Network ; September 2015";
+const NATIVE_TOKEN_ADDRESS =
+  import.meta.env.VITE_NATIVE_TOKEN_ADDRESS ||
+  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"; // Native XLM on testnet
 
 export function usePayments(
   publicKey: string | null,
@@ -97,6 +102,24 @@ export function usePayments(
       try {
         setState((prev) => ({ ...prev, loading: true, error: null }));
 
+        // Get the client's account from the secret key
+        const clientKeypair = Keypair.fromSecret(secretKey!);
+        const clientPublicKey = clientKeypair.publicKey();
+
+        console.log("🔑 Client account:", clientPublicKey);
+        console.log("🔍 Ensuring client account is funded...");
+
+        // Fund the session account if needed
+        try {
+          await ensureAccountFunded(clientPublicKey, "testnet");
+          console.log("✅ Client account ready");
+        } catch (fundError: any) {
+          console.error("❌ Failed to fund client account:", fundError);
+          throw new Error(
+            `Account funding failed: ${fundError.message}. Please fund ${clientPublicKey} manually at https://laboratory.stellar.org/#account-creator?network=test`
+          );
+        }
+
         // Get server payment address from API
         console.log("   Fetching server info from:", `${API_URL}/info`);
         const infoResponse = await fetch(`${API_URL}/info`);
@@ -111,21 +134,34 @@ export function usePayments(
 
         console.log("   Server address:", serverAddress);
 
-        // Open escrow: server, token (native), amount, ttl
+        // Also check server account (helpful for debugging)
+        console.log("🔍 Checking server account...");
+        try {
+          await ensureAccountFunded(serverAddress, "testnet");
+        } catch (error) {
+          console.warn("⚠️  Could not verify server account:", error);
+          // Continue anyway - server might already be funded
+        }
+
+        // Open escrow: server, token (native XLM), amount, ttl
         console.log("   Opening escrow with:");
         console.log("     Server:", serverAddress);
-        console.log("     Token: native");
+        console.log("     Token:", NATIVE_TOKEN_ADDRESS, "(native XLM)");
         console.log("     Amount:", amount, "stroops");
         console.log("     TTL: 3600 seconds");
 
         const txHash = await client.openEscrow(
           serverAddress,
-          "native", // Using native XLM
+          NATIVE_TOKEN_ADDRESS, // Native XLM token contract address
           amount,
           3600 // 1 hour TTL
         );
 
         console.log("✅ Escrow opened! Transaction hash:", txHash);
+        console.log(
+          "🔗 View on Stellar Expert:",
+          `https://stellar.expert/explorer/testnet/tx/${txHash}`
+        );
 
         setState((prev) => ({
           ...prev,
@@ -141,12 +177,28 @@ export function usePayments(
 
         return { id: txHash, balance: amount, nonce: 0, active: true };
       } catch (error: any) {
+        console.error("❌ Failed to open channel:", error);
+
+        let errorMessage = error.message || "Failed to open channel";
+
+        // Provide helpful error messages
+        if (error.message?.includes("Account not found")) {
+          errorMessage =
+            "Account needs funding. Please wait while we fund it automatically...";
+        } else if (error.message?.includes("channel_already_exists")) {
+          errorMessage =
+            "Channel already exists with this server. Close it first or use existing channel.";
+        } else if (error.message?.includes("insufficient_balance")) {
+          errorMessage = "Insufficient XLM balance. Please fund your account.";
+        }
+
         setState((prev) => ({
           ...prev,
           loading: false,
-          error: error.message || "Failed to open channel",
+          error: errorMessage,
         }));
-        throw error;
+
+        throw new Error(errorMessage);
       }
     },
     [client, publicKey]

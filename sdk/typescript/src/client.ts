@@ -41,8 +41,9 @@ export class X402FlashClient {
 
       const contract = new Contract(this.contractId);
 
-      const tx = new TransactionBuilder(account, {
-        fee: "10000",
+      // Build initial transaction
+      let tx = new TransactionBuilder(account, {
+        fee: "100000", // Increased fee for Soroban
         networkPassphrase: this.networkPassphrase,
       })
         .addOperation(
@@ -57,37 +58,141 @@ export class X402FlashClient {
             nativeToScVal(ttlSeconds, { type: "u64" })
           )
         )
-        .setTimeout(30)
+        .setTimeout(60) // Increased timeout
         .build();
 
-      tx.sign(this.keypair);
+      // Simulate transaction to get resource requirements
+      console.log("🔄 Simulating transaction...");
+      const simulated = await this.server.simulateTransaction(tx);
 
-      const response = await this.server.sendTransaction(tx);
+      console.log("📊 Simulation completed");
 
-      // Wait for confirmation
-      let txResponse = await this.server.getTransaction(response.hash);
+      if (!SorobanRpc.Api.isSimulationSuccess(simulated)) {
+        const error = simulated.error || "Unknown simulation error";
+        console.error("❌ Contract simulation failed:", error);
+        throw new Error(
+          `Contract simulation failed: ${error}. Contract may not exist, not be initialized, or parameters are incorrect.`
+        );
+      }
+
+      // Assemble transaction with simulation results
+      console.log("🔧 Assembling transaction with simulation results...");
+      let preparedTx;
+      try {
+        preparedTx = SorobanRpc.assembleTransaction(tx, simulated).build();
+        console.log("✅ Transaction assembled successfully");
+      } catch (assembleError) {
+        console.error("❌ Assembly error details:", {
+          error: assembleError,
+          message:
+            assembleError instanceof Error ? assembleError.message : "Unknown",
+          stack:
+            assembleError instanceof Error ? assembleError.stack : undefined,
+        });
+
+        // If assembly fails, it might be an issue with auth or footprint
+        // Try to provide more context
+        throw new Error(
+          `Failed to assemble transaction with simulation results. This usually means the contract invocation returned unexpected data. Error: ${assembleError instanceof Error ? assembleError.message : "Unknown error"}`
+        );
+      }
+
+      // Sign the prepared transaction
+      console.log("✍️ Signing transaction...");
+      preparedTx.sign(this.keypair);
+
+      // Send transaction
+      console.log("📤 Sending transaction to network...");
+      const response = await this.server.sendTransaction(preparedTx);
+      console.log("📨 Transaction sent, hash:", response.hash);
+
+      // Wait for confirmation with increased timeout
+      console.log("⏳ Waiting for transaction confirmation...");
       let attempts = 0;
-      const maxAttempts = 30;
+      const maxAttempts = 60; // 60 seconds
 
-      while (
-        txResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND &&
-        attempts < maxAttempts
-      ) {
+      while (attempts < maxAttempts) {
+        try {
+          const txResponse = await this.server.getTransaction(response.hash);
+
+          if (
+            txResponse.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS
+          ) {
+            console.log("✅ Transaction confirmed successfully!");
+            return response.hash;
+          } else if (
+            txResponse.status === SorobanRpc.Api.GetTransactionStatus.FAILED
+          ) {
+            console.error("❌ Transaction failed:", txResponse);
+            throw new Error(
+              `Transaction failed. Check: https://stellar.expert/explorer/testnet/tx/${response.hash}`
+            );
+          } else if (
+            txResponse.status !== SorobanRpc.Api.GetTransactionStatus.NOT_FOUND
+          ) {
+            throw new Error(
+              `Unexpected transaction status. Check: https://stellar.expert/explorer/testnet/tx/${response.hash}`
+            );
+          }
+
+          // NOT_FOUND - continue polling
+        } catch (error) {
+          // XDR parsing errors are a known issue with stellar-sdk
+          // Check transaction status via raw RPC call
+          if (
+            error instanceof Error &&
+            error.message.includes("Bad union switch")
+          ) {
+            console.log("⚠️ XDR parsing error, checking via raw RPC...");
+            try {
+              const rawResponse = await fetch(
+                this.server.serverURL.toString(),
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "getTransaction",
+                    params: { hash: response.hash },
+                  }),
+                }
+              );
+              const data: any = await rawResponse.json();
+
+              if (data.result?.status === "SUCCESS") {
+                console.log("✅ Transaction confirmed (via raw RPC)!");
+                return response.hash;
+              } else if (data.result?.status === "FAILED") {
+                throw new Error(
+                  `Transaction failed. View: https://stellar.expert/explorer/testnet/tx/${response.hash}`
+                );
+              } else if (data.result?.status !== "NOT_FOUND") {
+                throw new Error(
+                  `Unexpected status: ${data.result?.status}. View: https://stellar.expert/explorer/testnet/tx/${response.hash}`
+                );
+              }
+              // NOT_FOUND - continue polling
+            } catch (rpcError) {
+              console.error("Raw RPC check failed:", rpcError);
+              if (attempts >= maxAttempts - 1) {
+                throw new Error(
+                  `Could not confirm transaction status. View: https://stellar.expert/explorer/testnet/tx/${response.hash}`
+                );
+              }
+            }
+          } else if (attempts >= maxAttempts - 1) {
+            throw error;
+          }
+        }
+
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        txResponse = await this.server.getTransaction(response.hash);
         attempts++;
       }
 
-      if (txResponse.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
-        console.log(`✅ Escrow opened: ${amount} stroops`);
-        return response.hash;
-      } else if (
-        txResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND
-      ) {
-        throw new Error("Transaction timeout - not found after 30 seconds");
-      } else {
-        throw new Error(`Transaction failed with status: ${txResponse.status}`);
-      }
+      throw new Error(
+        `Transaction timeout after 60 seconds. Check: https://stellar.expert/explorer/testnet/tx/${response.hash}`
+      );
     } catch (error) {
       console.error("❌ Failed to open escrow:", error);
       if (error instanceof Error) {
