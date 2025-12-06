@@ -35,9 +35,12 @@ async function main() {
 
     // Get metadata
     console.log("📊 Fetching metadata...");
-    const metadata = await fetch(`${AGENT_SERVER_URL}/metadata`).then((r) =>
+    const metadata = (await fetch(`${AGENT_SERVER_URL}/metadata`).then((r) =>
       r.json()
-    );
+    )) as {
+      name: string;
+      pricing: { basePrice: number };
+    };
     console.log(`   Agent: ${metadata.name}`);
     console.log(`   Price: ${metadata.pricing.basePrice} stroops\n`);
 
@@ -65,7 +68,15 @@ async function main() {
       }),
     });
 
-    const result = await response.json();
+    const result = (await response.json()) as {
+      output?: string;
+      usage?: {
+        inputTokens: number;
+        outputTokens: number;
+        computeTime: number;
+        cost: number;
+      };
+    };
     console.log(`🤖 Response: ${result.output}\n`);
 
     if (result.usage) {
